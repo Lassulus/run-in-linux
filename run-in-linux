@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -efu
+
+_ssh() {
+  ssh \
+    -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+    -i keys/builder_ed25519 \
+    builder@localhost \
+    -p 31022 \
+    "$@"
+}
+
+_cleanup() {
+  rm -f nixos.qcow2
+  rm -rf keys
+
+  # https://stackoverflow.com/questions/360201/how-do-i-kill-background-processes-jobs-when-my-shell-script-exits
+  trap - SIGTERM && kill -- -$$
+}
+
+VM=$(nix-build --no-out-link ./vm.nix)/bin/create-builder
+trap _cleanup SIGINT SIGTERM EXIT
+"$VM" >/dev/null &
+until _ssh -- hostname >/dev/null; do sleep 1; done
+_ssh -t -- "$@"
